@@ -3,15 +3,22 @@ const cors = require("cors");
 const Anthropic = require("@anthropic-ai/sdk");
 
 const app = express();
+
+app.options("*", cors());
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"]
+  allowedHeaders: ["Content-Type", "Accept"],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
-
 app.use(express.json());
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", time: new Date().toISOString() });
+});
 
 app.post("/analyse", async (req, res) => {
   const { ticker, name, sector } = req.body;
@@ -63,10 +70,6 @@ app.post("/analyse", async (req, res) => {
     console.error("[ERROR] " + ticker + ":", err.message);
     res.status(500).json({ error: err.message });
   }
-});
-
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", time: new Date().toISOString() });
 });
 
 const PORT = process.env.PORT || 3001;
