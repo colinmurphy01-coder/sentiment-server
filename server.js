@@ -25,4 +25,46 @@ app.post("/analyse", async (req, res) => {
     '"geopolitical_flag":true|false,"timeframe":"Short-term|Medium-term|Long-term"}';
 
   try {
-    const message = await client.messages.create
+    const message = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 512,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const text = message.content
+      .filter(b => b.type === "text")
+      .map(b => b.text)
+      .join("");
+
+    let parsed;
+    try {
+      parsed = JSON.parse(text.trim());
+    } catch {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("No JSON found in response");
+      parsed = JSON.parse(match[0]);
+    }
+
+    const signals = ["BUY", "SELL", "HOLD", "WATCH"];
+    if (!signals.includes(parsed.signal)) parsed.signal = "HOLD";
+    parsed.confidence = Math.max(1, Math.min(10, Number(parsed.confidence) || 5));
+    if (!Array.isArray(parsed.catalysts)) parsed.catalysts = [];
+    if (!Array.isArray(parsed.risks)) parsed.risks = [];
+
+    console.log("[" + new Date().toLocaleTimeString() + "] " + ticker + " -> " + parsed.signal + " (" + parsed.confidence + "/10)");
+    res.json(parsed);
+
+  } catch (err) {
+    console.error("[ERROR] " + ticker + ":", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", time: new Date().toISOString() });
+});
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log("Sentiment server running on port " + PORT);
+});
